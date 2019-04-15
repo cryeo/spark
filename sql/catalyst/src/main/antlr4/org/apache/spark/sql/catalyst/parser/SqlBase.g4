@@ -649,7 +649,7 @@ primaryExpression
     | '(' namedExpression (',' namedExpression)+ ')'                                           #rowConstructor
     | '(' query ')'                                                                            #subqueryExpression
     | qualifiedName '(' (setQuantifier? argument+=expression (',' argument+=expression)*)? ')'
-       (OVER windowSpec)?                                                                      #functionCall
+       filterClause? (OVER windowSpec)?                                                        #functionCall
     | qualifiedName '(' trimOption=(BOTH | LEADING | TRAILING) argument+=expression
       FROM argument+=expression ')'                                                            #functionCall
     | IDENTIFIER '->' expression                                                               #lambda
@@ -769,6 +769,10 @@ windowSpec
         ((ORDER | SORT) BY sortItem (',' sortItem)*)?)
       windowFrame?
       ')'              #windowDef
+    ;
+
+filterClause
+    : FILTER '(' WHERE condition=booleanExpression ')'
     ;
 
 windowFrame
@@ -1109,6 +1113,7 @@ nonReserved
     | FETCH
     | FIELDS
     | FILEFORMAT
+    | FILTER
     | FIRST
     | FOLLOWING
     | FOR
@@ -1354,6 +1359,7 @@ FALSE: 'FALSE';
 FETCH: 'FETCH';
 FIELDS: 'FIELDS';
 FILEFORMAT: 'FILEFORMAT';
+FILTER: 'FILTER';
 FIRST: 'FIRST';
 FOLLOWING: 'FOLLOWING';
 FOR: 'FOR';

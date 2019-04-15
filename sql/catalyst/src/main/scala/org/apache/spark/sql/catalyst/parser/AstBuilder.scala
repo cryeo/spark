@@ -1346,6 +1346,7 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
   /**
    * Create a (windowed) Function expression.
    */
+  // scalastyle:off println
   override def visitFunctionCall(ctx: FunctionCallContext): Expression = withOrigin(ctx) {
     def replaceFunctions(
         funcID: FunctionIdentifier,
@@ -1381,16 +1382,22 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
     val funcId = replaceFunctions(visitFunctionName(ctx.qualifiedName), ctx)
     val function = UnresolvedFunction(funcId, arguments, isDistinct)
 
-
     // Check if the function is evaluated in a windowed context.
-    ctx.windowSpec match {
-      case spec: WindowRefContext =>
+
+
+    (Option(ctx.filterClause), Option(ctx.windowSpec)) match {
+      case (Some(_), Some(_)) =>
+        throw new ParseException("FILTER clause is not yet supported for window functions", ctx)
+      case (Some(filter), None) =>
+        FilteredAggregation(function, visitFilterClause(filter))
+      case (None, Some(spec: WindowRefContext)) =>
         UnresolvedWindowExpression(function, visitWindowRef(spec))
-      case spec: WindowDefContext =>
+      case (None, Some(spec: WindowDefContext)) =>
         WindowExpression(function, visitWindowDef(spec))
-      case _ => function
+      case (_, _) => function
     }
   }
+  // scalastyle:on println
 
   /**
    * Create a function database (optional) and name pair.
@@ -1448,6 +1455,13 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
       partition,
       order,
       frameSpecOption.getOrElse(UnspecifiedFrame))
+  }
+
+  /**
+   * Create a filter condition.
+   */
+  override def visitFilterClause(ctx: FilterClauseContext): Expression = withOrigin(ctx) {
+    expression(ctx.condition)
   }
 
   /**
