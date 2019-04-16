@@ -1346,7 +1346,6 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
   /**
    * Create a (windowed) Function expression.
    */
-  // scalastyle:off println
   override def visitFunctionCall(ctx: FunctionCallContext): Expression = withOrigin(ctx) {
     def replaceFunctions(
         funcID: FunctionIdentifier,
@@ -1383,13 +1382,11 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
     val function = UnresolvedFunction(funcId, arguments, isDistinct)
 
     // Check if the function is evaluated in a windowed context.
-
-
     (Option(ctx.filterClause), Option(ctx.windowSpec)) match {
       case (Some(_), Some(_)) =>
-        throw new ParseException("FILTER clause is not yet supported for window functions", ctx)
+        throw new ParseException("FILTER clause can't be used together with OVER clause", ctx)
       case (Some(filter), None) =>
-        FilteredAggregation(function, visitFilterClause(filter))
+        FilteredAggregateExpression(function, visitFilterClause(filter))
       case (None, Some(spec: WindowRefContext)) =>
         UnresolvedWindowExpression(function, visitWindowRef(spec))
       case (None, Some(spec: WindowDefContext)) =>
@@ -1397,7 +1394,6 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
       case (_, _) => function
     }
   }
-  // scalastyle:on println
 
   /**
    * Create a function database (optional) and name pair.
