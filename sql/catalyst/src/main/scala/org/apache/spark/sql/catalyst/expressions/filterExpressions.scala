@@ -17,14 +17,60 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
-import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.TypeCheckResult
+import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
+import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
+import org.apache.spark.sql.types.{BooleanType, DataType}
 
-case class FilteredAggregation(
-    expression: Expression,
-    filter: Expression) extends Expression with Unevaluable {
-  override def children: Seq[Expression] = Seq(expression, filter)
+case class AggregateFilter(filter: Expression) extends Expression {
+  override def children: Seq[Expression] = filter :: Nil
 
-  override def nullable: Boolean = true
-  override def foldable: Boolean = false
-  override def dataType: DataType = throw new UnsupportedOperationException("dataType")
+  override def dataType: DataType = filter.dataType
+
+  override def nullable: Boolean = filter.nullable
+
+  override def foldable: Boolean = filter.foldable
+
+  override def eval(input: InternalRow): Any = filter.eval(input)
+
+  override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode =
+    filter.genCode(ctx)
+
+  override def checkInputDataTypes(): TypeCheckResult = filter.dataType match {
+    case BooleanType =>
+      TypeCheckResult.TypeCheckSuccess
+    case _ =>
+      TypeCheckResult.TypeCheckFailure(
+        s"filter requires boolean type, not ${filter.dataType.catalogString}")
+  }
+
+  override def sql: String = s"FILTER (WHERE ${filter.sql})"
+}
+
+case class FilteredAggregateExpression(
+    aggregateFunction: Expression,
+    aggregateFilter: Expression) extends Expression with Unevaluable {
+  override def children: Seq[Expression] = aggregateFunction :: aggregateFilter :: Nil
+
+  override def nullable: Boolean = aggregateFunction.nullable
+
+  override def foldable: Boolean = aggregateFunction.foldable
+
+  override def dataType: DataType = aggregateFunction.dataType
+
+  override def checkInputDataTypes(): TypeCheckResult = aggregateFunction match {
+    case _: AggregateWindowFunction =>
+      TypeCheckResult.TypeCheckFailure("window function is currently not supported")
+    case _: AggregateExpression =>
+      TypeCheckResult.TypeCheckSuccess
+    case _ =>
+      TypeCheckResult.TypeCheckFailure("only aggregate function is supported")
+  }
+
+  override def toString: String = s"$aggregateFunction $aggregateFilter"
+
+  override def sql: String = s"${aggregateFunction.sql} ${aggregateFilter.sql}"
+
+  private def filter: Boolean = aggregateFilter.eval().asInstanceOf[Boolean]
 }

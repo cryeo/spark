@@ -1457,7 +1457,7 @@ class AstBuilder(conf: SQLConf) extends SqlBaseBaseVisitor[AnyRef] with Logging 
    * Create a filter condition.
    */
   override def visitFilterClause(ctx: FilterClauseContext): Expression = withOrigin(ctx) {
-    expression(ctx.condition)
+    AggregateFilter(expression(ctx.condition))
   }
 
   /**

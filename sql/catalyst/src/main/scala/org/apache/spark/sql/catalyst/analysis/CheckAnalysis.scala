@@ -205,8 +205,11 @@ trait CheckAnalysis extends PredicateHelper {
                   }
                 }
               case e: Attribute if groupingExprs.isEmpty =>
+                println(e)
+                println(e.isInstanceOf[Attribute])
                 // Collect all [[AggregateExpressions]]s.
                 val aggExprs = aggregateExprs.filter(_.collect {
+                  case _ @ FilteredAggregateExpression(a: AggregateExpression, _) => a
                   case a: AggregateExpression => a
                 }.nonEmpty)
                 failAnalysis(
